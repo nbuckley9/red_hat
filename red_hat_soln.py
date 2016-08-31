@@ -123,6 +123,8 @@ def benchmark_model():
 
 #MultiColumnEncoder adapted from: http://stackoverflow.com/questions/24458645/label-encoding-across-multiple-columns-in-scikit-learn
 #Another option here is to use: df.apply(LabelEncoder().fit_transform)
+#ThisLabelEncoder is designed to help preprocess the categorical data into numerical data that can be used by RandomForest Classifier
+
 class MultiColumnLabelEncoder:
     def __init__(self,columns = None):
         self.columns = columns # array of column names to encode
@@ -151,25 +153,21 @@ class MultiColumnLabelEncoder:
 def missing_value_model(train,test):
    
     
-    # Subset train dataframe randomly 
+    # Subset train dataframe randomly    
+    train=train.sample(frac=0.05, replace=False)    
     
-    #train=train.sample(frac=0.05, replace=False)    
     test_missing_set=test[test['outcome'].isnull()]
     
-    print "test_missing_set has {} samples with {} features each.".format(*test_missing_set.shape)
-    print "test_missing_set columns:\n{}".format(test_missing_set.columns.values)
+   
      #drop the extra columns created prior
     test_missing_set=test_missing_set.drop(['outcome'],axis=1)
     
     #drop the additional artificially created columns
     train=train.drop(['date_act_fillfw', 'date_act_fillbw', 'group_fillfw','group_fillbw'],axis=1)
     
-    #drop other columns 
+    #drop other columns already used in the leak solution above as they may potentially skew result here
     train=train.drop(['people_id','group_1','date','date_act'],axis=1)
     test_missing_set=test_missing_set.drop(['people_id','group_1','date','date_act'],axis=1)
-    
-    print "Train dataset has {} samples with {} features each.".format(*train.shape)    
-    print "Train columns:\n{}".format(train.columns.values)
     
     #encode labels
     train=MultiColumnLabelEncoder().fit_transform(train)
@@ -191,37 +189,31 @@ def missing_value_model(train,test):
     # So effectively 55% of the outcomes are '0' and only 45% are '1', so any ML algorithm that beats this is helpful
     #Train Test Split
   
-
-
-    #fit a random forest classifier
+    #fit a gradient boosting classifier
     from sklearn.ensemble import GradientBoostingClassifier
     clf = GradientBoostingClassifier()#before had n_estimators=100,max_features=20
     clf.fit(X_all,y_all)
     
+    #predict the new outcome variale
     test_missing_set['outcome']=clf.predict(test_missing_set)
+    
     #Left join the new test_missing_set to test
     test_missing_set=test_missing_set.reset_index()
-
-    
-    print "Test missing dataset has {} samples with {} features each.".format(*test_missing_set.shape)
     test=test.reset_index()
     
-    print "Test  has {} samples with {} features each.".format(*test.shape)
     
     #subset test_missing_set to only the values of interest (activity_id and outcome)
     test_missing_set=test_missing_set[['activity_id','outcome']]
     
     #merge those to the original test dataset
     test = pd.merge(test, test_missing_set, how="left", on='activity_id',suffixes=('','_new'))
-    print "This is test file before filling NAs", test.iloc[220:230,52:]
     #fill NAs with blanks and then combine the two columns into a final outcome column
     test['outcome']=test[['outcome']].fillna(float(0.0))
     test['outcome_new']=test[['outcome_new']].fillna(float(0.0))
-    print 'THESE ARE THE DATATYPES', test['outcome'].dtype, test['outcome_new'].dtype
+    #print 'THESE ARE THE DATATYPES', test['outcome'].dtype, test['outcome_new'].dtype
     test['outcome']=pd.to_numeric(test['outcome'])+pd.to_numeric(test['outcome_new'])
-    print "This is the test file after filling NAs", test.iloc[220:230,52:]    
+    #print "This is the test file after filling NAs", test.iloc[220:230,52:]    
         
-    #test["outcome"] = test["outcome"].fillna(test["outcome"].mean())    
     return test
 
 def main():

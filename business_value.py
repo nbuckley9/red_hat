@@ -82,6 +82,15 @@ print "\nTarget column: {}".format(target_col)
 X_all= merged_df[feature_cols]
 y_all=merged_df[target_col]
 
+#create baseline
+counts=merged_df["outcome"].value_counts()
+#baseline percentage assumes we assign the most frequently occurring value, in this case '0'
+baseline_percentage=1.0*counts[0]/(counts[0]+counts[1])
+print "This is the baseline percentage: ", baseline_percentage
+
+# So effectively 55% of the outcomes are '0' and only 45% are '1', so any ML algorithm that beats this is helpful
+
+
 
 
 
@@ -137,10 +146,13 @@ X_train, X_test, y_train, y_test = train_test_split(X_all, y_all,stratify=y_all,
 
 #fit a random forest classifier
 from sklearn.ensemble import RandomForestClassifier
-clf=RandomForestClassifier()
+clf=RandomForestClassifier(n_estimators=100,max_features=20)
 clf.fit(X_train,y_train)
 
 pred=clf.predict(X_test)
+
+
+#ATTEMPT TO IMPLEMENT GRIDSEARCHCV
 
 from sklearn import metrics
 # testing score
@@ -148,6 +160,42 @@ from sklearn import metrics
 pscore = metrics.accuracy_score(y_test, pred)
 print "Random forest score: ", pscore
 
+from sklearn.metrics import make_scorer
+from sklearn import grid_search
+def performance_metric(y_true, y_predict):
+    """ Calculates and returns the performance score between 
+        true and predicted values based on the metric chosen. """
+    
+    # TODO: Calculate the performance score between 'y_true' and 'y_predict'
+    score = metrics.accuracy_score(y_true,y_predict)
+    
+    
+    # Return the score
+    return score
+def fit_model(X,y,clf,params):
+    #Perform grid search over parameters given and returns optimal param set
+
+    
+    #clf=RandomForestClassifier()
+    #params = {'n_estimators':[10,20,30],'max_depth':[None],'max_features':[19,20,21]}
+    scoring_fnc=make_scorer(performance_metric)
+
+# TODO: Create the grid search object
+    grid = grid_search.GridSearchCV(clf,param_grid=params,scoring=scoring_fnc)
+
+# Fit the grid search object to the data to compute the optimal model
+    grid = grid.fit(X,y)
+
+# Print the optimal model after fitting the data
+    return grid.best_estimator_
+
+# Fit the training data to the model using grid search
+reg = fit_model(X_train, y_train,RandomForestClassifier(),{'n_estimators':[10],'max_depth':[None],'max_features':[21]})
+
+# Produce the value for 'max_depth'
+print "Parameter 'n_estimators',is {} for the optimal model.".format(reg.get_params()['n_estimators'])
+print "Parameter 'max_depth', is {} for the optimal model.".format(reg.get_params()['max_depth'])
+print "Parameter 'max_features' is {} for the optimal model.".format(reg.get_params()['max_features'])
 #fit a naive bayes classifier
 from sklearn.naive_bayes import GaussianNB
 clf=GaussianNB()
@@ -182,8 +230,25 @@ pscore = metrics.accuracy_score(y_test, pred)
 
 print "DecisionTree score: " , pscore           
 
-#Adaboost classifier
 
+#Gradient boosting
+
+from sklearn.ensemble import GradientBoostingClassifier
+clf = GradientBoostingClassifier(n_estimators=150, learning_rate=0.15, max_depth=11, random_state=0).fit(X_train, y_train)
+pred=clf.predict(X_test)
+pscore=metrics.accuracy_score(y_test,pred)
+
+print "Gradient Boosting score: " , pscore           
+
+#reg = fit_model(X_train, y_train,GradientBoostingClassifier(),{'learning_rate':[0.15],'n_estimators':[50,70,80,100],'max_depth':[9]})
+
+# Produce the value for 'max_depth'
+#print "Parameter 'n_estimators',is {} for the optimal model.".format(reg.get_params()['n_estimators'])
+#print "Parameter 'max_depth', is {} for the optimal model.".format(reg.get_params()['max_depth'])
+#print "Parameter 'learning_rate' is {} for the optimal model.".format(reg.get_params()['learning_rate'])
+'''
+#Adaboost classifier
+#This works but we're not using it because it take a lot longer to run
 from sklearn.ensemble import AdaBoostClassifier
 clf = AdaBoostClassifier(DecisionTreeClassifier(max_depth=None), n_estimators=50)
 clf.fit(X_train, y_train)
@@ -192,7 +257,7 @@ pscore = metrics.accuracy_score(y_test, pred)
 
 print "Adaboost w/DecisionTree score: " , pscore           
 
-'''
+
 #xgboost classifer
 #need to install xgboost to get this working
 import xgboost as xgb
