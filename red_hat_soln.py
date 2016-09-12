@@ -173,9 +173,6 @@ class MultiColumnLabelEncoder:
         
 #missing value model 4 uses a PCA model to reduce the dimensions before making a prediction 
 def missing_value_model_4(train,test):
-   
-    print "These are train the columns at the beginning of MM4", train.columns.values
-    print "These are test the columns at the beginning of MM4", test.columns.values
 
     #Take all columns and remove the ones created for the leak soln
     train=train.drop(['date_act_fillfw', 'date_act_fillbw', 'group_fillfw','group_fillbw'],axis=1)
@@ -183,26 +180,26 @@ def missing_value_model_4(train,test):
     #drop additional columns that we can't use easily in normalizer or PCA
     train=train.drop(['date_act','date','people_id'],axis=1)
     test=test.drop(['date_act','date','people_id'],axis=1)
-    #TODO take the dtypes that are not already encoded as integers 
-    #create a list of these columns to convert using multicolumnlabelencoder
-    #for now dropping the columns that seem to have floats or other issues that could cause probs
     
+    #also drop 'outcome', since it was created for the leak solution and we don't want it in this model as it makes the feature count mismatch with training set feature count
+    test=test.drop(['outcome'],axis=1)
     
+    #creating training X,y
     X_all=train.drop(['outcome'],axis=1)
     y_all= train['outcome']
     
-    test_x=test  
+    #create test set
+    test_x=test
     
-    #preprocess the data using multi-column label encoder
-    #TODO only apply to select columns that are non-int,non-float
+    #preprocess the data using multi-column label encoder, remove col 38 and add back as that one is a float
     X_all=X_all.drop(['char_38'],axis=1)
     X_all=MultiColumnLabelEncoder().fit_transform(X_all)
-    X_all=X_all.append(train[['char_38']])
+    X_all['char_38']=train[['char_38']]
     
     test_x=test_x.drop(['char_38'],axis=1)
     test_x=MultiColumnLabelEncoder().fit_transform(test_x)
-    test_x=test_x.append(test[['char_38']])
-    
+    test_x['char_38']=test[['char_38']]
+
     #impute missing values, normalize and use PCA to pivot to a smaller set of values, then apply gradient boosting classifier
     
     #first two PCA dimensions cover 90%+ of variance so we'll look at those
@@ -214,12 +211,13 @@ def missing_value_model_4(train,test):
     
     #clf = GradientBoostingClassifier()#before had n_estimators=100,max_features=20
     clf.fit(X_all,y_all)
+    #descriptive code below to fix later once this starts working   
     #pca_results=rs.pca_results(X_all,PCA)
     #print "PCA Explained Variance", pca_results['Explained Variance'].cumsum()
     #predict the new outcome variale
    
-    transformed_data=clf.predict(test_x)
-    test['outcome']=clf.inverse_transform(transformed_data)
+    test['outcome']=clf.predict(test_x)
+    #test['outcome']=clf.inverse_transform(predicted_data)
     
     return test['outcome']
     
